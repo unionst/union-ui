@@ -4,11 +4,29 @@ A comprehensive collection of SwiftUI components and utilities for iOS developme
 
 ## Installation
 
+### Option 1: Import Everything (Recommended)
+
 Add UnionUI to your project using Swift Package Manager:
 
 ```swift
 dependencies: [
     .package(url: "https://github.com/unionst/union-ui.git", from: "1.0.0")
+]
+```
+
+Then import once:
+```swift
+import UnionUI
+```
+
+### Option 2: Import Individual Packages
+
+You can also import individual packages if you only need specific components:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/unionst/union-buttons.git", from: "2.0.0"),
+    .package(url: "https://github.com/unionst/union-haptics.git", from: "1.0.0")
 ]
 ```
 
@@ -32,12 +50,22 @@ struct MyView: View {
 
 All components from all sub-packages are available with just the single `import UnionUI` statement.
 
-### Benefits
+### Benefits of Using UnionUI
 
 - **Single Import**: Use `import UnionUI` instead of importing 35+ individual packages
 - **Clean Sidebar**: Xcode shows only one package dependency instead of dozens
 - **Automatic Updates**: All components update together as a unified package
 - **No Version Conflicts**: Internal dependencies are managed automatically
+- **Flexibility**: Can still import individual packages when needed
+
+## Architecture
+
+UnionUI is an **umbrella package** that depends on all individual union packages:
+
+- **Individual repos** (union-buttons, union-haptics, etc.) are the **source of truth**
+- **UnionUI** pulls them all in and re-exports them
+- Updates to individual packages automatically flow into UnionUI
+- Choose your import style: all-in-one OR à la carte
 
 ## Components
 
