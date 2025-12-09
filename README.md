@@ -85,7 +85,6 @@ This single import gives you access to all UnionUI components:
 - **UnionHaptics** - Haptic feedback
 - **UnionHash** - Hashing utilities
 - **UnionImage** - Image utilities
-- **UnionKeyboard** - Keyboard management
 - **UnionKeychain** - Keychain wrapper
 - **UnionLoading** - Loading indicators
 - **UnionMaps** - Map utilities
@@ -96,14 +95,11 @@ This single import gives you access to all UnionUI components:
 - **UnionNotifications** - Notification components
 - **UnionNumbers** - Number formatting and utilities
 - **UnionPersistence** - Data persistence
-- **UnionScreen** - Screen utilities
 - **UnionScroll** - Scroll utilities
 - **UnionShake** - Shake animations
 - **UnionShapes** - Custom shapes
 - **UnionShareLink** - Share link components
-- **UnionSheets** - Sheet utilities
 - **UnionStacks** - Stack utilities
-- **UnionTabBar** - Tab bar components
 - **UnionTabView** - Tab view components
 - **UnionToast** - Toast notifications
 
