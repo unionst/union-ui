@@ -103,7 +103,8 @@ let package = Package(
         
         .target(
             name: "UnionMaterials",
-            path: "union-materials/Sources/UnionMaterials"
+            path: "union-materials/Sources/UnionMaterials",
+            exclude: ["Blurs/README.md", "Gradients/README.md"]
         ),
         
         .target(
@@ -184,7 +185,10 @@ let package = Package(
         
         .target(
             name: "UnionLoading",
-            path: "union-loading/Sources/UnionLoading"
+            path: "union-loading/Sources/UnionLoading",
+            resources: [
+                .process("Resources/loading.json")
+            ]
         ),
         
         .target(
