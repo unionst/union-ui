@@ -17,8 +17,29 @@ dependencies: [
 Simply import UnionUI in your Swift files:
 
 ```swift
+import SwiftUI
 import UnionUI
+
+struct MyView: View {
+    var body: some View {
+        VStack {
+            Text("Hello")
+                .unionFont(.title)
+        }
+    }
+}
 ```
+
+All components from all sub-packages are available with just the single `import UnionUI` statement.
+
+### Benefits
+
+- **Single Import**: Use `import UnionUI` instead of importing 35+ individual packages
+- **Clean Sidebar**: Xcode shows only one package dependency instead of dozens
+- **Automatic Updates**: All components update together as a unified package
+- **No Version Conflicts**: Internal dependencies are managed automatically
+
+## Components
 
 This single import gives you access to all UnionUI components:
 
