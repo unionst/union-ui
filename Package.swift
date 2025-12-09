@@ -64,13 +64,7 @@ let package = Package(
         
         .target(
             name: "UnionGestures",
-            dependencies: ["EdgeGestureModifier"],
             path: "union-gestures/Sources/UnionGestures"
-        ),
-        
-        .target(
-            name: "EdgeGestureModifier",
-            path: "coverd-edge-gesture/Sources/UnionGestures"
         ),
         
         .target(
