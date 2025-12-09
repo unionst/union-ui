@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "UnionUI",
+    name: "union-ui",
     defaultLocalization: "en",
     platforms: [
         .iOS(.v17)
