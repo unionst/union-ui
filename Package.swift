@@ -23,7 +23,6 @@ let package = Package(
                 "UnionBlurs",
                 "UnionBorderMask",
                 "UnionButtons",
-                "UnionChat",
                 "UnionConfetti",
                 "UnionCursor",
                 "UnionDebounce",
@@ -105,12 +104,6 @@ let package = Package(
             name: "UnionMaterials",
             path: "union-materials/Sources/UnionMaterials",
             exclude: ["Blurs/README.md", "Gradients/README.md"]
-        ),
-        
-        .target(
-            name: "UnionChat",
-            dependencies: ["UnionMaterials", "UnionButtons"],
-            path: "union-chat/source/Sources/union-chat"
         ),
         
         .target(

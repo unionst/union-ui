@@ -6,7 +6,6 @@ import SwiftUI
 @_exported import UnionBlurs
 @_exported import UnionBorderMask
 @_exported import UnionButtons
-@_exported import UnionChat
 @_exported import UnionConfetti
 @_exported import UnionCursor
 @_exported import UnionDebounce

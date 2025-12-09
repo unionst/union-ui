@@ -48,7 +48,6 @@ This single import gives you access to all UnionUI components:
 - **UnionBlurs** - Blur effects and materials
 - **UnionBorderMask** - Border masking utilities
 - **UnionButtons** - Button components with haptics
-- **UnionChat** - Chat interface components
 - **UnionConfetti** - Confetti animations
 - **UnionCursor** - Cursor utilities
 - **UnionDebounce** - Debouncing utilities
