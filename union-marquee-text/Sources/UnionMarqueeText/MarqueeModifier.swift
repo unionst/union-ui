@@ -26,9 +26,13 @@ struct MarqueeText: View {
     }
     
     private var spacing: CGFloat {
-        contentHeight * 3
+        contentHeight * 2
     }
-    
+
+    private var featherWidth: CGFloat {
+        contentHeight * 0.6
+    }
+
     var body: some View {
         text
             .lineLimit(1)
@@ -65,22 +69,30 @@ struct MarqueeText: View {
                         text.fixedSize()
                         text.fixedSize()
                     }
-                    .offset(x: offset)
+                    .offset(x: offset + featherWidth)
                     .animation(isAnimating ? .linear(duration: duration) : nil, value: offset)
-                    .frame(width: containerWidth, height: contentHeight, alignment: .leading)
+                    .frame(width: containerWidth + featherWidth, height: contentHeight, alignment: .leading)
                     .clipped()
                     .mask {
-                        LinearGradient(
-                            gradient: Gradient(stops: [
-                                .init(color: isScrolling ? .clear : .black, location: 0),
-                                .init(color: .black, location: isScrolling ? contentHeight / containerWidth : 0),
-                                .init(color: .black, location: 1 - (contentHeight / containerWidth)),
-                                .init(color: .clear, location: 1)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        HStack(spacing: 0) {
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: featherWidth)
+
+                            Rectangle().fill(.black)
+
+                            LinearGradient(
+                                colors: [.black, .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: featherWidth)
+                        }
                     }
+                    .frame(width: containerWidth, alignment: .trailing)
                 }
             }
             .onAppear {
