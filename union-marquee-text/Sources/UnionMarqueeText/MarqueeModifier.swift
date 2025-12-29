@@ -1,8 +1,8 @@
 import SwiftUI
 
 public extension Text {
-    func marquee(duration: Double = 8.0, delay: Double = 4.0) -> some View {
-        MarqueeText(text: self, duration: duration, delay: delay)
+    func marquee(duration: Double = 8.0, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
+        MarqueeText(text: self, duration: duration, delay: delay, insets: insets)
     }
 }
 
@@ -10,6 +10,7 @@ struct MarqueeText: View {
     let text: Text
     let duration: Double
     let delay: Double
+    let insets: CGFloat?
     
     @State private var contentWidth: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
@@ -30,7 +31,7 @@ struct MarqueeText: View {
     }
 
     private var featherWidth: CGFloat {
-        contentHeight * 0.6
+        insets ?? (contentHeight * 0.6)
     }
 
     var body: some View {
