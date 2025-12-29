@@ -1,7 +1,7 @@
 import SwiftUI
 
 public extension Text {
-    func marquee(duration: Double = 8.0, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
+    func marquee(duration: Double = 12, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
         MarqueeText(text: self, duration: duration, delay: delay, insets: insets)
     }
 }
@@ -71,7 +71,7 @@ struct MarqueeText: View {
                         text.fixedSize()
                     }
                     .offset(x: offset + featherWidth)
-                    .animation(isAnimating ? .linear(duration: duration) : nil, value: offset)
+                    .animation(isAnimating ? .smooth(duration: duration, extraBounce: 0.14) : nil, value: offset)
                     .frame(width: containerWidth + featherWidth, height: contentHeight, alignment: .leading)
                     .clipped()
                     .mask {
