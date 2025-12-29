@@ -61,12 +61,12 @@ struct MarqueeText: View {
             )
             .overlay {
                 if needsScrolling && containerWidth > 0 {
-                    ZStack(alignment: .leading) {
-                        text
-                            .fixedSize()
-                            .offset(x: offset)
-                            .animation(isAnimating ? .easeOut(duration: duration) : nil, value: offset)
+                    HStack(spacing: spacing) {
+                        text.fixedSize()
+                        text.fixedSize()
                     }
+                    .offset(x: offset)
+                    .animation(isAnimating ? .linear(duration: duration) : nil, value: offset)
                     .frame(width: containerWidth, height: contentHeight, alignment: .leading)
                     .clipped()
                     .mask {
@@ -101,21 +101,16 @@ struct MarqueeText: View {
         Task {
             try? await Task.sleep(for: .seconds(delay))
             
-            isAnimating = true
-            offset = -(contentWidth + spacing)
-            
-            try? await Task.sleep(for: .seconds(duration))
-            
             while needsScrolling {
-                isAnimating = false
-                offset = 0
-                
-                try? await Task.sleep(for: .seconds(delay))
-                
                 isAnimating = true
                 offset = -(contentWidth + spacing)
                 
                 try? await Task.sleep(for: .seconds(duration))
+                
+                isAnimating = false
+                offset = 0
+                
+                try? await Task.sleep(for: .seconds(delay))
             }
         }
     }
