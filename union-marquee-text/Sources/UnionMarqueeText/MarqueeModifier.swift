@@ -1,7 +1,7 @@
 import SwiftUI
 
 public extension Text {
-    func marquee(duration: Double = 12, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
+    func marquee(duration: Double = 5.0, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
         MarqueeText(text: self, duration: duration, delay: delay, insets: insets)
     }
 }
@@ -17,13 +17,11 @@ struct MarqueeText: View {
     @State private var containerWidth: CGFloat = 0
     @State private var offset: CGFloat = 0
     @State private var isAnimating = false
+    @State private var animationTask: Task<Void, Never>?
+    @State private var isVisible = false
     
     private var needsScrolling: Bool {
         contentWidth > containerWidth && containerWidth > 0
-    }
-    
-    private var isScrolling: Bool {
-        offset < 0
     }
     
     private var spacing: CGFloat {
@@ -97,28 +95,34 @@ struct MarqueeText: View {
                 }
             }
             .onAppear {
-                if needsScrolling {
-                    startScrolling()
-                }
+                isVisible = true
+                restartAnimationIfNeeded()
             }
-            .onChange(of: needsScrolling) { _, scrolling in
-                if scrolling {
-                    startScrolling()
-                } else {
-                    stopScrolling()
-                }
+            .onDisappear {
+                isVisible = false
+                stopScrolling()
+            }
+            .onChange(of: needsScrolling) { _, _ in
+                restartAnimationIfNeeded()
             }
     }
     
+    private func restartAnimationIfNeeded() {
+        stopScrolling()
+        guard isVisible && needsScrolling else { return }
+        startScrolling()
+    }
+    
     private func startScrolling() {
-        Task {
+        animationTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))
             
-            while needsScrolling {
+            while !Task.isCancelled && needsScrolling && isVisible {
                 isAnimating = true
                 offset = -(contentWidth + spacing)
                 
                 try? await Task.sleep(for: .seconds(duration))
+                guard !Task.isCancelled else { break }
                 
                 isAnimating = false
                 offset = 0
@@ -129,6 +133,8 @@ struct MarqueeText: View {
     }
     
     private func stopScrolling() {
+        animationTask?.cancel()
+        animationTask = nil
         isAnimating = false
         offset = 0
     }
