@@ -40,6 +40,7 @@ struct MarqueeText: View {
     var body: some View {
         text
             .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .opacity(needsScrolling ? 0 : 1)
             .background(
                 GeometryReader { containerGeometry in
