@@ -1,0 +1,3 @@
+[submodule "union-screenshots"]
+	path = union-screenshots
+	url = https://github.com/unionst/union-screenshots.git
