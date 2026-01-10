@@ -20,7 +20,7 @@ public struct Visualizer: View {
         GeometryReader { geometry in
             let size = geometry.size
 
-            TimelineView(.animation) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
 
                 // Background layer animation
@@ -38,12 +38,12 @@ public struct Visualizer: View {
                 let offsetX3 = cos(time * 0.03 + 3.0) * size.width * 0.25
                 let offsetY3 = sin(time * 0.045 + 3.0) * size.height * 0.25
 
-                // 16 mesh control points for each foreground layer
+                // Mesh control points for foreground layers
                 let p1 = meshControlPoints(time: time, size: size, phase: 0)
                 let p2 = meshControlPoints(time: time, size: size, phase: 2.5)
 
                 ZStack {
-                    // Background layer
+                    // Background layer - no distortion for performance
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
