@@ -5,42 +5,50 @@ import SwiftUI
 public struct Visualizer: View {
     private let image: Image
     private let animationSpeed: Double
+    private let blur: CGFloat
 
     private static let shaderLibrary = ShaderLibrary.bundle(.module)
 
     public init(
         _ resource: ImageResource,
-        animationSpeed: Double = 1.0
+        animationSpeed: Double = 1.0,
+        blur: CGFloat = 20
     ) {
         self.image = Image(resource)
         self.animationSpeed = animationSpeed
+        self.blur = blur
     }
 
     public var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
 
+            // Render at max 200px, maintaining aspect ratio
+            let maxRenderSize: CGFloat = 200
+            let scale = min(maxRenderSize / size.width, maxRenderSize / size.height)
+            let renderSize = CGSize(width: size.width * scale, height: size.height * scale)
+
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
 
                 // Background layer animation
                 let rotation = Angle(radians: time * 0.015)
-                let offsetX = cos(time * 0.03) * size.width * 0.1
-                let offsetY = sin(time * 0.025) * size.height * 0.1
+                let offsetX = cos(time * 0.03) * renderSize.width * 0.1
+                let offsetY = sin(time * 0.025) * renderSize.height * 0.1
 
                 // Foreground layer 1 animation
                 let rotation2 = Angle(radians: time * -0.02 + 0.5)
-                let offsetX2 = cos(time * 0.04 + 1.5) * size.width * 0.2
-                let offsetY2 = sin(time * 0.035 + 1.5) * size.height * 0.2
+                let offsetX2 = cos(time * 0.04 + 1.5) * renderSize.width * 0.2
+                let offsetY2 = sin(time * 0.035 + 1.5) * renderSize.height * 0.2
 
                 // Foreground layer 2 animation
                 let rotation3 = Angle(radians: time * 0.025 + 1.2)
-                let offsetX3 = cos(time * 0.03 + 3.0) * size.width * 0.25
-                let offsetY3 = sin(time * 0.045 + 3.0) * size.height * 0.25
+                let offsetX3 = cos(time * 0.03 + 3.0) * renderSize.width * 0.25
+                let offsetY3 = sin(time * 0.045 + 3.0) * renderSize.height * 0.25
 
-                // Layer sizes
-                let layer1Size = CGSize(width: size.width * 1.5, height: size.height * 1.5)
-                let layer2Size = CGSize(width: size.width * 1.2, height: size.height * 1.2)
+                // Layer sizes for distorted foreground layers
+                let layer1Size = CGSize(width: renderSize.width * 1.4, height: renderSize.height * 1.4)
+                let layer2Size = CGSize(width: renderSize.width * 1.2, height: renderSize.height * 1.2)
 
                 // Mesh control points for foreground layers
                 let p1 = meshControlPoints(time: time, size: layer1Size, phase: 0)
@@ -52,7 +60,7 @@ public struct Visualizer: View {
                         .resizable()
                         .interpolation(.low)
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: size.width * 2.5, height: size.height * 2.5)
+                        .frame(width: renderSize.width * 2.5, height: renderSize.height * 2.5)
                         .rotationEffect(rotation)
                         .offset(x: offsetX, y: offsetY)
 
@@ -94,8 +102,14 @@ public struct Visualizer: View {
                         .rotationEffect(rotation3)
                         .offset(x: offsetX3, y: offsetY3)
                 }
+                .saturation(1.3)
+                .scaleEffect(1.0 / scale)
+                .padding(-blur)
+                .blur(radius: blur)
+                .padding(blur)
                 .frame(width: size.width, height: size.height)
                 .clipped()
+                .overlay(Color.black.opacity(0.3))
                 .drawingGroup()
             }
         }
