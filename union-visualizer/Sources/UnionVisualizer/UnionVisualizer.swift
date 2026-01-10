@@ -33,8 +33,8 @@ public struct Visualizer: View {
                 let offsetX2 = cos(time * 0.04 + 1.5) * size.width * 0.2
                 let offsetY2 = sin(time * 0.035 + 1.5) * size.height * 0.2
 
-                // 9 mesh control points with animated displacement
-                let meshPoints = meshControlPoints(time: time, size: size)
+                // 16 mesh control points (4x4 grid)
+                let p = meshControlPoints(time: time, size: size)
 
                 ZStack {
                     // Background layer
@@ -53,11 +53,16 @@ public struct Visualizer: View {
                         .distortionEffect(
                             Self.shaderLibrary.meshDistort(
                                 .float2(size),
-                                .float2(meshPoints[0]), .float2(meshPoints[1]), .float2(meshPoints[2]),
-                                .float2(meshPoints[3]), .float2(meshPoints[4]), .float2(meshPoints[5]),
-                                .float2(meshPoints[6]), .float2(meshPoints[7]), .float2(meshPoints[8])
+                                // Row 0
+                                .float2(p[0]), .float2(p[1]), .float2(p[2]), .float2(p[3]),
+                                // Row 1
+                                .float2(p[4]), .float2(p[5]), .float2(p[6]), .float2(p[7]),
+                                // Row 2
+                                .float2(p[8]), .float2(p[9]), .float2(p[10]), .float2(p[11]),
+                                // Row 3
+                                .float2(p[12]), .float2(p[13]), .float2(p[14]), .float2(p[15])
                             ),
-                            maxSampleOffset: CGSize(width: size.width * 0.3, height: size.height * 0.3)
+                            maxSampleOffset: CGSize(width: size.width * 0.4, height: size.height * 0.4)
                         )
                         .rotationEffect(rotation2)
                         .offset(x: offsetX2, y: offsetY2)
@@ -68,19 +73,24 @@ public struct Visualizer: View {
         }
     }
 
-    /// Generate 9 animated control point displacements for the mesh
+    /// Generate 16 animated control point displacements for the mesh (4x4 grid)
     private func meshControlPoints(time: Double, size: CGSize) -> [CGPoint] {
         var points: [CGPoint] = []
         let amplitude = min(size.width, size.height) * 0.35
 
-        for row in 0..<3 {
-            for col in 0..<3 {
-                let index = row * 3 + col
-                let phase = Double(index) * 0.7
+        for row in 0..<4 {
+            for col in 0..<4 {
+                let index = row * 4 + col
+                let phase = Double(index) * 0.5
+
+                // Vary amplitude based on position - more in center
+                let centerDistX = abs(Double(col) - 1.5) / 1.5
+                let centerDistY = abs(Double(row) - 1.5) / 1.5
+                let centerFactor = 1.0 - (centerDistX + centerDistY) * 0.3
 
                 // Each point moves in a unique pattern
-                let dx = cos(time * 0.05 + phase) * amplitude * (col == 1 ? 1.5 : 1.0)
-                let dy = sin(time * 0.04 + phase * 1.3) * amplitude * (row == 1 ? 1.5 : 1.0)
+                let dx = cos(time * 0.05 + phase) * amplitude * centerFactor
+                let dy = sin(time * 0.04 + phase * 1.3) * amplitude * centerFactor
 
                 points.append(CGPoint(x: dx, y: dy))
             }
