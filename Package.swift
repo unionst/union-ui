@@ -52,7 +52,8 @@ let package = Package(
                 "UnionStacks",
                 "UnionTabBar",
                 "UnionTabView",
-                "UnionToast"
+                "UnionToast",
+                "UnionVisualizer"
             ],
             path: "Sources/UnionUI"
         ),
@@ -247,6 +248,11 @@ let package = Package(
         .target(
             name: "UnionTabView",
             path: "union-tab-view/Sources/UnionTabView"
+        ),
+
+        .target(
+            name: "UnionVisualizer",
+            path: "union-visualizer/Sources/UnionVisualizer"
         )
     ]
 )

@@ -36,4 +36,5 @@ import SwiftUI
 @_exported import UnionTabBar
 @_exported import UnionTabView
 @_exported import UnionToast
+@_exported import UnionVisualizer
 
