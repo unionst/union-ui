@@ -28,13 +28,19 @@ public struct Visualizer: View {
                 let offsetX = cos(time * 0.03) * size.width * 0.1
                 let offsetY = sin(time * 0.025) * size.height * 0.1
 
-                // Foreground layer animation
+                // Foreground layer 1 animation
                 let rotation2 = Angle(radians: time * -0.02 + 0.5)
                 let offsetX2 = cos(time * 0.04 + 1.5) * size.width * 0.2
                 let offsetY2 = sin(time * 0.035 + 1.5) * size.height * 0.2
 
-                // 16 mesh control points (4x4 grid)
-                let p = meshControlPoints(time: time, size: size)
+                // Foreground layer 2 animation
+                let rotation3 = Angle(radians: time * 0.025 + 1.2)
+                let offsetX3 = cos(time * 0.03 + 3.0) * size.width * 0.25
+                let offsetY3 = sin(time * 0.045 + 3.0) * size.height * 0.25
+
+                // 16 mesh control points for each foreground layer
+                let p1 = meshControlPoints(time: time, size: size, phase: 0)
+                let p2 = meshControlPoints(time: time, size: size, phase: 2.5)
 
                 ZStack {
                     // Background layer
@@ -45,7 +51,7 @@ public struct Visualizer: View {
                         .rotationEffect(rotation)
                         .offset(x: offsetX, y: offsetY)
 
-                    // Foreground layer with mesh distortion
+                    // Foreground layer 1 with mesh distortion
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -53,19 +59,33 @@ public struct Visualizer: View {
                         .distortionEffect(
                             Self.shaderLibrary.meshDistort(
                                 .float2(size),
-                                // Row 0
-                                .float2(p[0]), .float2(p[1]), .float2(p[2]), .float2(p[3]),
-                                // Row 1
-                                .float2(p[4]), .float2(p[5]), .float2(p[6]), .float2(p[7]),
-                                // Row 2
-                                .float2(p[8]), .float2(p[9]), .float2(p[10]), .float2(p[11]),
-                                // Row 3
-                                .float2(p[12]), .float2(p[13]), .float2(p[14]), .float2(p[15])
+                                .float2(p1[0]), .float2(p1[1]), .float2(p1[2]), .float2(p1[3]),
+                                .float2(p1[4]), .float2(p1[5]), .float2(p1[6]), .float2(p1[7]),
+                                .float2(p1[8]), .float2(p1[9]), .float2(p1[10]), .float2(p1[11]),
+                                .float2(p1[12]), .float2(p1[13]), .float2(p1[14]), .float2(p1[15])
                             ),
                             maxSampleOffset: CGSize(width: size.width * 0.4, height: size.height * 0.4)
                         )
                         .rotationEffect(rotation2)
                         .offset(x: offsetX2, y: offsetY2)
+
+                    // Foreground layer 2 with mesh distortion
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: size.width * 1.0, height: size.height * 1.0)
+                        .distortionEffect(
+                            Self.shaderLibrary.meshDistort(
+                                .float2(size),
+                                .float2(p2[0]), .float2(p2[1]), .float2(p2[2]), .float2(p2[3]),
+                                .float2(p2[4]), .float2(p2[5]), .float2(p2[6]), .float2(p2[7]),
+                                .float2(p2[8]), .float2(p2[9]), .float2(p2[10]), .float2(p2[11]),
+                                .float2(p2[12]), .float2(p2[13]), .float2(p2[14]), .float2(p2[15])
+                            ),
+                            maxSampleOffset: CGSize(width: size.width * 0.4, height: size.height * 0.4)
+                        )
+                        .rotationEffect(rotation3)
+                        .offset(x: offsetX3, y: offsetY3)
                 }
                 .frame(width: size.width, height: size.height)
                 .clipped()
@@ -74,14 +94,14 @@ public struct Visualizer: View {
     }
 
     /// Generate 16 animated control point displacements for the mesh (4x4 grid)
-    private func meshControlPoints(time: Double, size: CGSize) -> [CGPoint] {
+    private func meshControlPoints(time: Double, size: CGSize, phase basePhase: Double) -> [CGPoint] {
         var points: [CGPoint] = []
         let amplitude = min(size.width, size.height) * 0.35
 
         for row in 0..<4 {
             for col in 0..<4 {
                 let index = row * 4 + col
-                let phase = Double(index) * 0.5
+                let phase = Double(index) * 0.5 + basePhase
 
                 // Vary amplitude based on position - more in center
                 let centerDistX = abs(Double(col) - 1.5) / 1.5
