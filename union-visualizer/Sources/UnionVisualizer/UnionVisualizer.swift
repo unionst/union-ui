@@ -23,12 +23,12 @@ public struct Visualizer: View {
         GeometryReader { geometry in
             let size = geometry.size
 
-            // Render at max 100px, maintaining aspect ratio
-            let maxRenderSize: CGFloat = 100
+            // Render at max 50px, maintaining aspect ratio
+            let maxRenderSize: CGFloat = 50
             let scale = min(maxRenderSize / size.width, maxRenderSize / size.height)
             let renderSize = CGSize(width: size.width * scale, height: size.height * scale)
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
 
                 // Background layer animation
@@ -111,7 +111,6 @@ public struct Visualizer: View {
                 .padding(blur)
                 .frame(width: size.width, height: size.height)
                 .clipped()
-                .drawingGroup()
             }
         }
     }
