@@ -23,8 +23,8 @@ public struct Visualizer: View {
         GeometryReader { geometry in
             let size = geometry.size
 
-            // Render at max 200px, maintaining aspect ratio
-            let maxRenderSize: CGFloat = 200
+            // Render at max 100px, maintaining aspect ratio
+            let maxRenderSize: CGFloat = 100
             let scale = min(maxRenderSize / size.width, maxRenderSize / size.height)
             let renderSize = CGSize(width: size.width * scale, height: size.height * scale)
 
@@ -103,13 +103,14 @@ public struct Visualizer: View {
                         .offset(x: offsetX3, y: offsetY3)
                 }
                 .saturation(1.3)
+                .contrast(0.4)
+                .brightness(-0.15)
                 .scaleEffect(1.0 / scale)
                 .padding(-blur)
                 .blur(radius: blur)
                 .padding(blur)
                 .frame(width: size.width, height: size.height)
                 .clipped()
-                .overlay(Color.black.opacity(0.3))
                 .drawingGroup()
             }
         }
