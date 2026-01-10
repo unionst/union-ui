@@ -19,35 +19,38 @@ public struct Visualizer: View {
     public var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
+            // Render at half resolution for performance
+            let renderScale: CGFloat = 0.5
+            let renderSize = CGSize(width: size.width * renderScale, height: size.height * renderScale)
 
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 let time = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
 
                 // Background layer animation
                 let rotation = Angle(radians: time * 0.015)
-                let offsetX = cos(time * 0.03) * size.width * 0.1
-                let offsetY = sin(time * 0.025) * size.height * 0.1
+                let offsetX = cos(time * 0.03) * renderSize.width * 0.1
+                let offsetY = sin(time * 0.025) * renderSize.height * 0.1
 
                 // Foreground layer 1 animation
                 let rotation2 = Angle(radians: time * -0.02 + 0.5)
-                let offsetX2 = cos(time * 0.04 + 1.5) * size.width * 0.2
-                let offsetY2 = sin(time * 0.035 + 1.5) * size.height * 0.2
+                let offsetX2 = cos(time * 0.04 + 1.5) * renderSize.width * 0.2
+                let offsetY2 = sin(time * 0.035 + 1.5) * renderSize.height * 0.2
 
                 // Foreground layer 2 animation
                 let rotation3 = Angle(radians: time * 0.025 + 1.2)
-                let offsetX3 = cos(time * 0.03 + 3.0) * size.width * 0.25
-                let offsetY3 = sin(time * 0.045 + 3.0) * size.height * 0.25
+                let offsetX3 = cos(time * 0.03 + 3.0) * renderSize.width * 0.25
+                let offsetY3 = sin(time * 0.045 + 3.0) * renderSize.height * 0.25
 
                 // Mesh control points for foreground layers
-                let p1 = meshControlPoints(time: time, size: size, phase: 0)
-                let p2 = meshControlPoints(time: time, size: size, phase: 2.5)
+                let p1 = meshControlPoints(time: time, size: renderSize, phase: 0)
+                let p2 = meshControlPoints(time: time, size: renderSize, phase: 2.5)
 
                 ZStack {
                     // Background layer - no distortion for performance
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: size.width * 2.5, height: size.height * 2.5)
+                        .frame(width: renderSize.width * 2.5, height: renderSize.height * 2.5)
                         .rotationEffect(rotation)
                         .offset(x: offsetX, y: offsetY)
 
@@ -55,16 +58,16 @@ public struct Visualizer: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: size.width * 1.2, height: size.height * 1.2)
+                        .frame(width: renderSize.width * 1.2, height: renderSize.height * 1.2)
                         .distortionEffect(
                             Self.shaderLibrary.meshDistort(
-                                .float2(size),
+                                .float2(renderSize),
                                 .float2(p1[0]), .float2(p1[1]), .float2(p1[2]), .float2(p1[3]),
                                 .float2(p1[4]), .float2(p1[5]), .float2(p1[6]), .float2(p1[7]),
                                 .float2(p1[8]), .float2(p1[9]), .float2(p1[10]), .float2(p1[11]),
                                 .float2(p1[12]), .float2(p1[13]), .float2(p1[14]), .float2(p1[15])
                             ),
-                            maxSampleOffset: CGSize(width: size.width * 0.4, height: size.height * 0.4)
+                            maxSampleOffset: CGSize(width: renderSize.width * 0.4, height: renderSize.height * 0.4)
                         )
                         .rotationEffect(rotation2)
                         .offset(x: offsetX2, y: offsetY2)
@@ -73,22 +76,23 @@ public struct Visualizer: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: size.width * 1.0, height: size.height * 1.0)
+                        .frame(width: renderSize.width * 1.0, height: renderSize.height * 1.0)
                         .distortionEffect(
                             Self.shaderLibrary.meshDistort(
-                                .float2(size),
+                                .float2(renderSize),
                                 .float2(p2[0]), .float2(p2[1]), .float2(p2[2]), .float2(p2[3]),
                                 .float2(p2[4]), .float2(p2[5]), .float2(p2[6]), .float2(p2[7]),
                                 .float2(p2[8]), .float2(p2[9]), .float2(p2[10]), .float2(p2[11]),
                                 .float2(p2[12]), .float2(p2[13]), .float2(p2[14]), .float2(p2[15])
                             ),
-                            maxSampleOffset: CGSize(width: size.width * 0.4, height: size.height * 0.4)
+                            maxSampleOffset: CGSize(width: renderSize.width * 0.4, height: renderSize.height * 0.4)
                         )
                         .rotationEffect(rotation3)
                         .offset(x: offsetX3, y: offsetY3)
                 }
-                .frame(width: size.width, height: size.height)
+                .frame(width: renderSize.width, height: renderSize.height)
                 .clipped()
+                .scaleEffect(1.0 / renderScale)
             }
         }
     }
