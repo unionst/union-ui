@@ -1,8 +1,8 @@
 import SwiftUI
 
 public extension Text {
-    func marquee(speed: Double = 30.0, delay: Double = 4.0, insets: CGFloat? = nil) -> some View {
-        MarqueeText(text: self, speed: speed, delay: delay, insets: insets)
+    func marquee(speed: Double = 30.0, delay: Double = 4.0, insets: CGFloat? = nil, easeOutDistance: CGFloat = 40.0) -> some View {
+        MarqueeText(text: self, speed: speed, delay: delay, insets: insets, easeOutDistance: easeOutDistance)
     }
 }
 
@@ -11,19 +11,28 @@ struct MarqueeText: View {
     let speed: Double
     let delay: Double
     let insets: CGFloat?
-    
+    let easeOutDistance: CGFloat
+
+    @Environment(\.multilineTextAlignment) private var textAlignment
+
     @State private var contentWidth: CGFloat = 0
     @State private var contentHeight: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
     @State private var offset: CGFloat = 0
-    @State private var isAnimating = false
+    @State private var animationPhase: AnimationPhase = .idle
     @State private var animationTask: Task<Void, Never>?
     @State private var isVisible = false
-    
+
+    private enum AnimationPhase {
+        case idle
+        case linear
+        case easeOut
+    }
+
     private var needsScrolling: Bool {
         contentWidth > containerWidth && containerWidth > 0
     }
-    
+
     private var spacing: CGFloat {
         contentHeight * 2
     }
@@ -31,16 +40,47 @@ struct MarqueeText: View {
     private var featherWidth: CGFloat {
         insets ?? (contentHeight * 0.6)
     }
-    
-    private var duration: Double {
-        let distance = contentWidth + spacing
-        return distance / speed
+
+    private var totalDistance: CGFloat {
+        contentWidth + spacing
+    }
+
+    private var linearDistance: CGFloat {
+        max(0, totalDistance - easeOutDistance)
+    }
+
+    private var linearDuration: Double {
+        linearDistance / speed
+    }
+
+    private var easeOutDuration: Double {
+        // Ease out takes a bit longer since it decelerates
+        (easeOutDistance / speed) * 1.5
+    }
+
+    private var frameAlignment: Alignment {
+        switch textAlignment {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
+    }
+
+    private var currentAnimation: Animation? {
+        switch animationPhase {
+        case .idle:
+            return nil
+        case .linear:
+            return .linear(duration: linearDuration)
+        case .easeOut:
+            return .easeOut(duration: easeOutDuration)
+        }
     }
 
     var body: some View {
         text
             .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
             .opacity(needsScrolling ? 0 : 1)
             .background(
                 GeometryReader { containerGeometry in
@@ -75,7 +115,7 @@ struct MarqueeText: View {
                         text.fixedSize()
                     }
                     .offset(x: offset + featherWidth)
-                    .animation(isAnimating ? .linear(duration: duration) : nil, value: offset)
+                    .animation(currentAnimation, value: offset)
                     .frame(width: containerWidth + featherWidth, height: contentHeight, alignment: .leading)
                     .clipped()
                     .mask {
@@ -122,26 +162,35 @@ struct MarqueeText: View {
     private func startScrolling() {
         animationTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(delay))
-            
+
             while !Task.isCancelled && needsScrolling && isVisible {
-                isAnimating = true
-                offset = -(contentWidth + spacing)
-                
-                try? await Task.sleep(for: .seconds(duration))
+                // Phase 1: Linear animation for most of the distance
+                animationPhase = .linear
+                offset = -linearDistance
+
+                try? await Task.sleep(for: .seconds(linearDuration))
                 guard !Task.isCancelled else { break }
-                
-                isAnimating = false
+
+                // Phase 2: Ease out for the final portion
+                animationPhase = .easeOut
+                offset = -totalDistance
+
+                try? await Task.sleep(for: .seconds(easeOutDuration))
+                guard !Task.isCancelled else { break }
+
+                // Reset to start position
+                animationPhase = .idle
                 offset = 0
-                
+
                 try? await Task.sleep(for: .seconds(delay))
             }
         }
     }
-    
+
     private func stopScrolling() {
         animationTask?.cancel()
         animationTask = nil
-        isAnimating = false
+        animationPhase = .idle
         offset = 0
     }
 }
