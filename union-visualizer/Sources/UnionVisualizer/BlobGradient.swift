@@ -103,9 +103,9 @@ private class BlobGradientView: UIView {
     private let motionManager = CMMotionManager()
     private var currentOffset: CGPoint = .zero
     private var velocity: CGPoint = .zero
-    private let smoothing: CGFloat = 0.1
-    private let inertia: CGFloat = 0.92
-    private let velocityScale: CGFloat = 0.5
+    private let smoothing: CGFloat = 0.04
+    private let inertia: CGFloat = 0.96
+    private let velocityScale: CGFloat = 0.8
 
     weak var delegate: BlobGradientViewDelegate?
 
