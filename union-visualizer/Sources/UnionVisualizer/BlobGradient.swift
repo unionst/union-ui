@@ -101,6 +101,8 @@ private class BlobGradientView: UIView {
     let baseLayer = BlobContainerLayer()
     let highlightLayer = BlobContainerLayer()
     private let motionManager = CMMotionManager()
+    private var displayLink: CADisplayLink?
+    private var startTime: CFTimeInterval = 0
     private var currentOffset: CGPoint = .zero
     private var velocity: CGPoint = .zero
     private let smoothing: CGFloat = 0.04
@@ -122,6 +124,29 @@ private class BlobGradientView: UIView {
         updateColors(highlights, layer: highlightLayer)
 
         setupMotion()
+        setupDisplayLink()
+    }
+
+    private func setupDisplayLink() {
+        startTime = CACurrentMediaTime()
+        displayLink = CADisplayLink(target: self, selector: #selector(updateAnimation))
+        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60)
+        displayLink?.add(to: .main, forMode: .common)
+    }
+
+    @objc private func updateAnimation() {
+        let time = CACurrentMediaTime() - startTime
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        for sublayer in (baseLayer.sublayers ?? []) + (highlightLayer.sublayers ?? []) {
+            if let blob = sublayer as? BlobLayer {
+                blob.updateAnimation(time: time, motionOffset: currentOffset)
+            }
+        }
+
+        CATransaction.commit()
     }
 
     required init?(coder: NSCoder) {
@@ -159,21 +184,12 @@ private class BlobGradientView: UIView {
             x: smoothedX + velocity.x,
             y: smoothedY + velocity.y
         )
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
-        for sublayer in (baseLayer.sublayers ?? []) + (highlightLayer.sublayers ?? []) {
-            if let blob = sublayer as? BlobLayer {
-                blob.applyMotionOffset(currentOffset)
-            }
-        }
-
-        CATransaction.commit()
     }
 
     override func removeFromSuperview() {
         super.removeFromSuperview()
+        displayLink?.invalidate()
+        displayLink = nil
         motionManager.stopDeviceMotionUpdates()
     }
 
@@ -242,6 +258,12 @@ private class BlobContainerLayer: CALayer {
 private class BlobLayer: CAGradientLayer {
     private var basePosition: CGPoint = .zero
     private var radius: CGPoint = .zero
+    private let phaseX: CGFloat = .random(in: 0...(.pi * 2))
+    private let phaseY: CGFloat = .random(in: 0...(.pi * 2))
+    private let frequencyX: CGFloat = .random(in: 0.08...0.15)
+    private let frequencyY: CGFloat = .random(in: 0.08...0.15)
+    private let amplitudeX: CGFloat = .random(in: 0.2...0.35)
+    private let amplitudeY: CGFloat = .random(in: 0.2...0.35)
 
     init(color: Color) {
         super.init()
@@ -282,10 +304,13 @@ private class BlobLayer: CAGradientLayer {
         locations = [0.0, 0.9, 1.0]
     }
 
-    func applyMotionOffset(_ offset: CGPoint) {
+    func updateAnimation(time: CFTimeInterval, motionOffset: CGPoint) {
+        let animOffsetX = sin(time * frequencyX + phaseX) * amplitudeX
+        let animOffsetY = cos(time * frequencyY + phaseY) * amplitudeY
+
         let newPosition = CGPoint(
-            x: basePosition.x + offset.x,
-            y: basePosition.y + offset.y
+            x: basePosition.x + CGFloat(animOffsetX) + motionOffset.x,
+            y: basePosition.y + CGFloat(animOffsetY) + motionOffset.y
         )
         startPoint = newPosition
         endPoint = newPosition.offset(by: radius)
