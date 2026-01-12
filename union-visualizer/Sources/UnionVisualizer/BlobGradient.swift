@@ -10,87 +10,97 @@ public enum BlobSize: Sendable {
 
     var radiusRange: (min: CGFloat, max: CGFloat) {
         switch self {
-        case .small: return (0.06, 0.14)
-        case .medium: return (0.12, 0.24)
-        case .large: return (0.25, 0.45)
+        case .small: return (0.05, 0.20)
+        case .medium: return (0.10, 0.45)
+        case .large: return (0.15, 0.75)
         }
     }
 
     var baseBlobCount: Int {
         switch self {
-        case .small: return 80
-        case .medium: return 25
-        case .large: return 10
+        case .small: return 24
+        case .medium: return 14
+        case .large: return 8
         }
     }
 }
 
 public struct BlobGradient: View {
     private let blobColors: [Color]
+    private let highlightColors: [Color]
     private let blur: CGFloat
     private let blurAmount: CGFloat
     private let fill: CGFloat
     private let blobSize: BlobSize
+    private let speed: CGFloat
 
     @State private var blurValue: CGFloat = 0.0
 
     public init(
-        primary: Color,
-        secondary: Color,
+        _ baseColor: Color,
+        highlights: [Color] = [],
         blur: CGFloat = 0.75,
         blurAmount: CGFloat = 1.0,
         fill: CGFloat = 0.5,
-        blobSize: BlobSize = .medium
+        blobSize: BlobSize = .medium,
+        speed: CGFloat = 1.5
     ) {
-        self.blobColors = Self.generateBlobColors(primary: primary, secondary: secondary)
+        self.blobColors = Self.generateBlobColors(baseColor: baseColor)
+        self.highlightColors = highlights
         self.blur = blur
         self.blurAmount = blurAmount
         self.fill = max(0, min(1, fill))
         self.blobSize = blobSize
+        self.speed = max(0, speed)
     }
 
     public var body: some View {
         BlobGradientRepresentable(
             colors: blobColors,
+            highlights: highlightColors,
             blurValue: $blurValue,
             fill: fill,
-            blobSize: blobSize
+            blobSize: blobSize,
+            speed: speed
         )
         .blur(radius: pow(blurValue, blur) * blurAmount)
         .ignoresSafeArea()
     }
 
-    private static func generateBlobColors(primary: Color, secondary: Color) -> [Color] {
-        var colors: [Color] = []
+    private static func generateBlobColors(baseColor: Color) -> [Color] {
+        let darker = baseColor.darkerVariant()
+        let lighter = baseColor.lighterVariant()
 
-        colors.append(primary)
-        colors.append(primary.opacity(0.8))
-        colors.append(secondary)
-        colors.append(secondary.opacity(0.8))
-        colors.append(primary.mix(with: secondary, by: 0.5))
-        colors.append(primary.lighter(by: 0.2))
-        colors.append(secondary.darker(by: 0.15))
-
-        return colors
+        return [
+            baseColor,
+            baseColor.opacity(0.8),
+            darker,
+            darker.opacity(0.8),
+            lighter,
+            lighter.opacity(0.8),
+            baseColor.mix(with: lighter, by: 0.5)
+        ]
     }
 }
 
 extension Color {
     @MainActor
     public func blobGradient(
-        secondary: Color? = nil,
+        highlights: [Color] = [],
         blur: CGFloat = 0.75,
         blurAmount: CGFloat = 1.0,
         fill: CGFloat = 0.5,
-        blobSize: BlobSize = .medium
+        blobSize: BlobSize = .medium,
+        speed: CGFloat = 1.5
     ) -> some View {
         BlobGradient(
-            primary: self,
-            secondary: secondary ?? self.lighter(by: 0.3),
+            self,
+            highlights: highlights,
             blur: blur,
             blurAmount: blurAmount,
             fill: fill,
-            blobSize: blobSize
+            blobSize: blobSize,
+            speed: speed
         )
     }
 
@@ -123,51 +133,100 @@ extension Color {
         UIColor(self).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
         return Color(hue: h, saturation: s, brightness: max(0, b - amount), opacity: a)
     }
+
+    func darkerVariant() -> Color {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(self).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return Color(hue: h, saturation: s, brightness: b * 0.85, opacity: a)
+    }
+
+    func lighterVariant() -> Color {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        UIColor(self).getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return Color(hue: h, saturation: s * 0.75, brightness: min(1, b + 0.2), opacity: a)
+    }
 }
 
 private struct BlobGradientRepresentable: UIViewRepresentable {
     let colors: [Color]
+    let highlights: [Color]
     @Binding var blurValue: CGFloat
     let fill: CGFloat
     let blobSize: BlobSize
+    let speed: CGFloat
 
     func makeUIView(context: Context) -> BlobGradientView {
         context.coordinator.view
     }
 
     func updateUIView(_ view: BlobGradientView, context: Context) {
-        context.coordinator.update(colors: colors, fill: fill, blobSize: blobSize)
+        context.coordinator.update(colors: colors, highlights: highlights, fill: fill, blobSize: blobSize, speed: speed)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(colors: colors, blurValue: $blurValue, fill: fill, blobSize: blobSize)
+        Coordinator(colors: colors, highlights: highlights, blurValue: $blurValue, fill: fill, blobSize: blobSize, speed: speed)
     }
 
     @MainActor
     class Coordinator: BlobGradientViewDelegate {
         var colors: [Color]
+        var highlights: [Color]
         var blurValue: Binding<CGFloat>
         var fill: CGFloat
         var blobSize: BlobSize
+        var speed: CGFloat
         let view: BlobGradientView
 
-        init(colors: [Color], blurValue: Binding<CGFloat>, fill: CGFloat, blobSize: BlobSize) {
+        init(colors: [Color], highlights: [Color], blurValue: Binding<CGFloat>, fill: CGFloat, blobSize: BlobSize, speed: CGFloat) {
             self.colors = colors
+            self.highlights = highlights
             self.blurValue = blurValue
             self.fill = fill
             self.blobSize = blobSize
-            self.view = BlobGradientView(colors: colors, fill: fill, blobSize: blobSize)
+            self.speed = speed
+            self.view = BlobGradientView(colors: colors, highlights: highlights, fill: fill, blobSize: blobSize, speed: speed)
             self.view.delegate = self
         }
 
-        func update(colors: [Color], fill: CGFloat, blobSize: BlobSize) {
-            if colors != self.colors || fill != self.fill || blobSize != self.blobSize {
+        func update(colors: [Color], highlights: [Color], fill: CGFloat, blobSize: BlobSize, speed: CGFloat) {
+            if colors != self.colors || highlights != self.highlights || fill != self.fill || blobSize != self.blobSize {
+                let highlightsAdded = highlights.count > self.highlights.count
                 self.colors = colors
+                self.highlights = highlights
                 self.fill = fill
                 self.blobSize = blobSize
                 view.fill = fill
                 view.blobSize = blobSize
-                view.updateColors(colors)
+
+                if highlightsAdded {
+                    crossfadeColors(colors, highlights: highlights)
+                } else {
+                    view.updateColors(colors, highlights: highlights)
+                }
+            }
+            if speed != self.speed {
+                self.speed = speed
+                view.speed = speed
+            }
+        }
+
+        private func crossfadeColors(_ colors: [Color], highlights: [Color]) {
+            let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
+            let snapshot = renderer.image { _ in
+                view.drawHierarchy(in: view.bounds, afterScreenUpdates: false)
+            }
+
+            let snapshotView = UIImageView(image: snapshot)
+            snapshotView.frame = view.bounds
+            snapshotView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(snapshotView)
+
+            view.updateColors(colors, highlights: highlights)
+
+            UIView.animate(withDuration: 0.4, delay: 0, options: .curveEaseInOut) {
+                snapshotView.alpha = 0
+            } completion: { _ in
+                snapshotView.removeFromSuperview()
             }
         }
 
@@ -184,7 +243,8 @@ private protocol BlobGradientViewDelegate: AnyObject {
 }
 
 private class BlobGradientView: UIView {
-    let blobLayer = BlobContainerLayer()
+    let baseLayer = BlobContainerLayer()
+    let highlightLayer = BlobContainerLayer()
     private let motionManager = CMMotionManager()
     private var displayLink: CADisplayLink?
     private var startTime: CFTimeInterval = 0
@@ -192,18 +252,25 @@ private class BlobGradientView: UIView {
     private let smoothing: CGFloat = 0.12
     var fill: CGFloat = 0.5
     var blobSize: BlobSize = .medium
+    var speed: CGFloat = 1.5
 
     weak var delegate: BlobGradientViewDelegate?
 
-    init(colors: [Color] = [], fill: CGFloat = 0.5, blobSize: BlobSize = .medium) {
+    init(colors: [Color] = [], highlights: [Color] = [], fill: CGFloat = 0.5, blobSize: BlobSize = .medium, speed: CGFloat = 1.5) {
         self.fill = fill
         self.blobSize = blobSize
+        self.speed = speed
         super.init(frame: .zero)
 
-        clipsToBounds = false
-        layer.addSublayer(blobLayer)
+        if let compositingFilter = CIFilter(name: "CIOverlayBlendMode") {
+            highlightLayer.compositingFilter = compositingFilter
+        }
 
-        updateColors(colors)
+        clipsToBounds = false
+        layer.addSublayer(baseLayer)
+        layer.addSublayer(highlightLayer)
+
+        updateColors(colors, highlights: highlights)
 
         setupMotion()
         setupDisplayLink()
@@ -217,14 +284,20 @@ private class BlobGradientView: UIView {
     }
 
     @objc private func updateAnimation() {
-        let time = CACurrentMediaTime() - startTime
+        guard speed > 0 else { return }
+
+        let time = (CACurrentMediaTime() - startTime) * speed
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        for sublayer in blobLayer.sublayers ?? [] {
-            if let blob = sublayer as? BlobLayer {
-                blob.updateAnimation(time: time, motionOffset: currentOffset)
+        let viewRatio = bounds.width > 0 && bounds.height > 0 ? bounds.width / bounds.height : 1.0
+
+        for layer in [baseLayer, highlightLayer] {
+            for sublayer in layer.sublayers ?? [] {
+                if let blob = sublayer as? BlobLayer {
+                    blob.updateAnimation(time: time, motionOffset: currentOffset, viewRatio: viewRatio)
+                }
             }
         }
 
@@ -248,8 +321,8 @@ private class BlobGradientView: UIView {
     private func applyMotion(pitch: Double, roll: Double) {
         guard bounds.width > 0 else { return }
 
-        let sensitivity: CGFloat = 0.30
-        let maxOffset: CGFloat = 0.20
+        let sensitivity: CGFloat = 0.68
+        let maxOffset: CGFloat = 0.45
         let targetX = max(-maxOffset, min(maxOffset, CGFloat(roll) * sensitivity))
         let targetY = max(-maxOffset, min(maxOffset, CGFloat(pitch) * sensitivity))
 
@@ -275,10 +348,13 @@ private class BlobGradientView: UIView {
         let buffer: CGFloat = 100
         let expandedFrame = bounds.insetBy(dx: -buffer, dy: -buffer)
 
-        blobLayer.frame = expandedFrame
+        baseLayer.frame = expandedFrame
+        highlightLayer.frame = expandedFrame
 
-        for sublayer in blobLayer.sublayers ?? [] {
-            sublayer.frame = CGRect(origin: .zero, size: expandedFrame.size)
+        for layer in [baseLayer, highlightLayer] {
+            for sublayer in layer.sublayers ?? [] {
+                sublayer.frame = CGRect(origin: .zero, size: expandedFrame.size)
+            }
         }
 
         CATransaction.commit()
@@ -286,8 +362,15 @@ private class BlobGradientView: UIView {
         delegate?.didUpdateBlur(min(bounds.width, bounds.height))
     }
 
-    func updateColors(_ colors: [Color]) {
-        blobLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
+    func updateColors(_ colors: [Color], highlights: [Color]) {
+        updateLayer(baseLayer, with: colors)
+        updateLayer(highlightLayer, with: highlights)
+    }
+
+    private func updateLayer(_ layer: BlobContainerLayer, with colors: [Color]) {
+        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+
+        guard !colors.isEmpty else { return }
 
         let radiusRange = blobSize.radiusRange
         let blobCount = max(5, Int(CGFloat(blobSize.baseBlobCount) * fill))
@@ -295,8 +378,8 @@ private class BlobGradientView: UIView {
 
         for color in colorsToUse {
             let blob = BlobLayer(color: color, minRadius: radiusRange.min, maxRadius: radiusRange.max)
-            blob.frame = blobLayer.bounds
-            blobLayer.addSublayer(blob)
+            blob.frame = layer.bounds
+            layer.addSublayer(blob)
         }
     }
 }
@@ -325,6 +408,7 @@ private class BlobContainerLayer: CALayer {
 private class BlobLayer: CAGradientLayer {
     private var basePosition: CGPoint = .zero
     private var baseRadius: CGPoint = .zero
+    private let aspectRatioMultiplier: CGFloat = .random(in: 0.6...1.4)
 
     private let phaseX: CGFloat = .random(in: 0...(.pi * 2))
     private let phaseY: CGFloat = .random(in: 0...(.pi * 2))
@@ -339,6 +423,9 @@ private class BlobLayer: CAGradientLayer {
     private let radiusFreqY: CGFloat = .random(in: 0.15...0.36)
     private let radiusAmplitude: CGFloat = .random(in: 0.3...0.5)
 
+    private let opacityPhase: CGFloat = .random(in: 0...(.pi * 2))
+    private let opacityFrequency: CGFloat = .random(in: 0.2...0.4)
+
     init(color: Color, minRadius: CGFloat = 0.15, maxRadius: CGFloat = 0.4) {
         super.init()
 
@@ -346,8 +433,8 @@ private class BlobLayer: CAGradientLayer {
         masksToBounds = false
 
         basePosition = CGPoint(
-            x: CGFloat.random(in: 0.2...0.8),
-            y: CGFloat.random(in: 0.2...0.8)
+            x: CGFloat.random(in: 0.0...1.0),
+            y: CGFloat.random(in: 0.0...1.0)
         )
         baseRadius = CGPoint(
             x: CGFloat.random(in: minRadius...max(minRadius + 0.01, maxRadius)),
@@ -378,7 +465,7 @@ private class BlobLayer: CAGradientLayer {
         locations = [0.0, 0.9, 1.0]
     }
 
-    func updateAnimation(time: CFTimeInterval, motionOffset: CGPoint) {
+    func updateAnimation(time: CFTimeInterval, motionOffset: CGPoint, viewRatio: CGFloat) {
         let animOffsetX = sin(time * frequencyX + phaseX) * amplitudeX
         let animOffsetY = cos(time * frequencyY + phaseY) * amplitudeY
 
@@ -390,13 +477,17 @@ private class BlobLayer: CAGradientLayer {
         let scaleX = 1.0 + sin(time * radiusFreqX + radiusPhaseX) * radiusAmplitude
         let scaleY = 1.0 + cos(time * radiusFreqY + radiusPhaseY) * radiusAmplitude
 
+        let safeRatio = max(viewRatio.isNaN ? 1 : viewRatio, 1)
         let animatedRadius = CGPoint(
             x: baseRadius.x * scaleX,
-            y: baseRadius.y * scaleY
+            y: baseRadius.y * scaleY * safeRatio * aspectRatioMultiplier
         )
 
         startPoint = newPosition
         endPoint = newPosition.offset(by: animatedRadius)
+
+        let newOpacity = 0.75 + 0.25 * Float(sin(time * opacityFrequency + opacityPhase))
+        opacity = newOpacity
     }
 }
 

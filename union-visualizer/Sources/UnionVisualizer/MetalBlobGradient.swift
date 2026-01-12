@@ -6,126 +6,162 @@ import UIKit
 
 public struct MetalBlobGradient: View {
     private let blobColors: [Color]
+    private let highlightColors: [Color]
+    private let backgroundColor: Color
     private let blur: CGFloat
     private let dithering: CGFloat
     private let particleSize: CGFloat
     private let fill: CGFloat
     private let blobSize: BlobSize
+    private let speed: CGFloat
 
     public init(
-        primary: Color,
-        secondary: Color,
+        _ baseColor: Color,
+        highlights: [Color] = [],
+        background: Color = .black,
         blur: CGFloat = 0.75,
         dithering: CGFloat = 0.4,
         particleSize: CGFloat = 80,
         fill: CGFloat = 0.5,
-        blobSize: BlobSize = .medium
+        blobSize: BlobSize = .medium,
+        speed: CGFloat = 1.5
     ) {
-        self.blobColors = Self.generateBlobColors(primary: primary, secondary: secondary)
+        self.blobColors = Self.generateBlobColors(baseColor: baseColor)
+        self.highlightColors = highlights
+        self.backgroundColor = background
         self.blur = blur
         self.dithering = dithering
         self.particleSize = particleSize
         self.fill = max(0, min(1, fill))
         self.blobSize = blobSize
+        self.speed = max(0, speed)
     }
 
     public var body: some View {
         MetalBlobGradientRepresentable(
             colors: blobColors,
+            highlights: highlightColors,
+            background: backgroundColor,
             blur: blur,
             dithering: dithering,
             particleSize: particleSize,
             fill: fill,
-            blobSize: blobSize
+            blobSize: blobSize,
+            speed: speed
         )
         .ignoresSafeArea()
     }
 
-    private static func generateBlobColors(primary: Color, secondary: Color) -> [Color] {
-        var colors: [Color] = []
+    private static func generateBlobColors(baseColor: Color) -> [Color] {
+        let darker = baseColor.darkerVariant()
+        let lighter = baseColor.lighterVariant()
 
-        colors.append(primary)
-        colors.append(primary.opacity(0.8))
-        colors.append(secondary)
-        colors.append(secondary.opacity(0.8))
-        colors.append(primary.mix(with: secondary, by: 0.5))
-        colors.append(primary.lighter(by: 0.2))
-        colors.append(secondary.darker(by: 0.15))
-
-        return colors
+        return [
+            baseColor,
+            baseColor.opacity(0.8),
+            darker,
+            darker.opacity(0.8),
+            lighter,
+            lighter.opacity(0.8),
+            baseColor.mix(with: lighter, by: 0.5)
+        ]
     }
 }
 
 extension Color {
     @MainActor
     public func metalBlobGradient(
-        secondary: Color? = nil,
+        highlights: [Color] = [],
+        background: Color = .black,
         blur: CGFloat = 0.75,
         dithering: CGFloat = 0.4,
         particleSize: CGFloat = 80,
         fill: CGFloat = 0.5,
-        blobSize: BlobSize = .medium
+        blobSize: BlobSize = .medium,
+        speed: CGFloat = 1.5
     ) -> some View {
         MetalBlobGradient(
-            primary: self,
-            secondary: secondary ?? self.lighter(by: 0.3),
+            self,
+            highlights: highlights,
+            background: background,
             blur: blur,
             dithering: dithering,
             particleSize: particleSize,
             fill: fill,
-            blobSize: blobSize
+            blobSize: blobSize,
+            speed: speed
         )
     }
 }
 
 private struct MetalBlobGradientRepresentable: UIViewRepresentable {
     let colors: [Color]
+    let highlights: [Color]
+    let background: Color
     let blur: CGFloat
     let dithering: CGFloat
     let particleSize: CGFloat
     let fill: CGFloat
     let blobSize: BlobSize
+    let speed: CGFloat
 
     func makeUIView(context: Context) -> MetalBlobGradientView {
         context.coordinator.view
     }
 
     func updateUIView(_ view: MetalBlobGradientView, context: Context) {
-        context.coordinator.update(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
+        context.coordinator.update(colors: colors, highlights: highlights, background: background, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize, speed: speed)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
+        Coordinator(colors: colors, highlights: highlights, background: background, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize, speed: speed)
     }
 
     @MainActor
     class Coordinator {
         var colors: [Color]
+        var highlights: [Color]
+        var background: Color
         var blur: CGFloat
         var dithering: CGFloat
         var particleSize: CGFloat
         var fill: CGFloat
         var blobSize: BlobSize
+        var speed: CGFloat
         let view: MetalBlobGradientView
 
-        init(colors: [Color], blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize) {
+        init(colors: [Color], highlights: [Color], background: Color, blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize, speed: CGFloat) {
             self.colors = colors
+            self.highlights = highlights
+            self.background = background
             self.blur = blur
             self.dithering = dithering
             self.particleSize = particleSize
             self.fill = fill
             self.blobSize = blobSize
-            self.view = MetalBlobGradientView(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
+            self.speed = speed
+            self.view = MetalBlobGradientView(colors: colors, highlights: highlights, background: background, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize, speed: speed)
         }
 
-        func update(colors: [Color], blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize) {
-            if colors != self.colors || fill != self.fill || blobSize != self.blobSize {
+        func update(colors: [Color], highlights: [Color], background: Color, blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize, speed: CGFloat) {
+            if colors != self.colors || highlights != self.highlights || fill != self.fill || blobSize != self.blobSize {
+                let highlightsAdded = highlights.count > self.highlights.count
                 self.colors = colors
+                self.highlights = highlights
                 self.fill = fill
                 self.blobSize = blobSize
                 view.fill = fill
                 view.blobSize = blobSize
-                view.updateColors(colors)
+
+                if highlightsAdded {
+                    crossfadeColors(colors, highlights: highlights)
+                } else {
+                    view.updateColors(colors, highlights: highlights)
+                }
+            }
+            if background != self.background {
+                self.background = background
+                view.setBackground(background)
             }
             if blur != self.blur {
                 self.blur = blur
@@ -138,6 +174,30 @@ private struct MetalBlobGradientRepresentable: UIViewRepresentable {
             if particleSize != self.particleSize {
                 self.particleSize = particleSize
                 view.particleSize = particleSize
+            }
+            if speed != self.speed {
+                self.speed = speed
+                view.speed = speed
+            }
+        }
+
+        private func crossfadeColors(_ colors: [Color], highlights: [Color]) {
+            let renderer = UIGraphicsImageRenderer(bounds: view.bounds)
+            let snapshot = renderer.image { _ in
+                view.drawHierarchy(in: view.bounds, afterScreenUpdates: false)
+            }
+
+            let snapshotView = UIImageView(image: snapshot)
+            snapshotView.frame = view.bounds
+            snapshotView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.addSubview(snapshotView)
+
+            view.updateColors(colors, highlights: highlights)
+
+            UIView.animate(withDuration: 0.4, delay: 0, options: .curveEaseInOut) {
+                snapshotView.alpha = 0
+            } completion: { _ in
+                snapshotView.removeFromSuperview()
             }
         }
     }
@@ -158,7 +218,10 @@ private struct BlobData {
     var radiusFreqX: Float
     var radiusFreqY: Float
     var radiusAmplitude: Float
-    var padding: SIMD2<Float> = .zero
+    var aspectRatioMultiplier: Float
+    var opacityPhase: Float
+    var opacityFrequency: Float
+    var isHighlight: Int32
 }
 
 private struct Uniforms {
@@ -167,6 +230,10 @@ private struct Uniforms {
     var blobCount: Int32
     var bufferRatioX: Float
     var bufferRatioY: Float
+    var viewRatio: Float
+    var bgR: Float
+    var bgG: Float
+    var bgB: Float
     var padding: Float = 0
 }
 
@@ -206,22 +273,26 @@ private class MetalBlobGradientView: UIView {
     private var blobs: [BlobData] = []
     private var bufferRatioX: Float = 0.15
     private var bufferRatioY: Float = 0.15
+    private var bgColor: SIMD3<Float> = SIMD3<Float>(0, 0, 0)
     var blur: CGFloat = 0.75
     var dithering: CGFloat = 0.4
     var particleSize: CGFloat = 80
     var fill: CGFloat = 0.5
     var blobSize: BlobSize = .medium
+    var speed: CGFloat = 1.5
 
-    init(colors: [Color] = [], blur: CGFloat = 0.75, dithering: CGFloat = 0.4, particleSize: CGFloat = 80, fill: CGFloat = 0.5, blobSize: BlobSize = .medium) {
+    init(colors: [Color] = [], highlights: [Color] = [], background: Color = .black, blur: CGFloat = 0.75, dithering: CGFloat = 0.4, particleSize: CGFloat = 80, fill: CGFloat = 0.5, blobSize: BlobSize = .medium, speed: CGFloat = 1.5) {
         self.blur = blur
         self.dithering = dithering
         self.particleSize = particleSize
         self.fill = fill
         self.blobSize = blobSize
+        self.speed = speed
         super.init(frame: .zero)
 
         setupMetal()
-        updateColors(colors)
+        setBackground(background)
+        updateColors(colors, highlights: highlights)
         setupMotion()
 
         startTime = CACurrentMediaTime()
@@ -229,6 +300,14 @@ private class MetalBlobGradientView: UIView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func setBackground(_ color: Color) {
+        let uiColor = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        bgColor = SIMD3<Float>(Float(r), Float(g), Float(b))
+        metalView?.clearColor = MTLClearColor(red: Double(r), green: Double(g), blue: Double(b), alpha: 1)
     }
 
     private func setupMetal() {
@@ -242,7 +321,6 @@ private class MetalBlobGradientView: UIView {
         metalView.delegate = self
         metalView.framebufferOnly = false
         metalView.colorPixelFormat = .bgra8Unorm
-        metalView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         metalView.preferredFramesPerSecond = 60
         metalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(metalView)
@@ -275,7 +353,10 @@ private class MetalBlobGradientView: UIView {
             float radiusFreqX;
             float radiusFreqY;
             float radiusAmplitude;
-            float2 padding;
+            float aspectRatioMultiplier;
+            float opacityPhase;
+            float opacityFrequency;
+            int isHighlight;
         };
 
         struct Uniforms {
@@ -284,6 +365,10 @@ private class MetalBlobGradientView: UIView {
             int blobCount;
             float bufferRatioX;
             float bufferRatioY;
+            float viewRatio;
+            float bgR;
+            float bgG;
+            float bgB;
             float padding;
         };
 
@@ -314,8 +399,11 @@ private class MetalBlobGradientView: UIView {
                 uniforms.bufferRatioY + in.uv.y * (1.0 - 2.0 * uniforms.bufferRatioY)
             );
 
-            float3 result = float3(0);
-            float resultAlpha = 0;
+            float3 baseResult = float3(uniforms.bgR, uniforms.bgG, uniforms.bgB);
+            float3 highlightResult = float3(0);
+            float highlightAlpha = 0;
+
+            float safeRatio = max(uniforms.viewRatio, 1.0);
 
             for (int i = 0; i < uniforms.blobCount; i++) {
                 BlobData blob = blobs[i];
@@ -328,25 +416,44 @@ private class MetalBlobGradientView: UIView {
                 float scaleX = 1.0 + sin(uniforms.time * blob.radiusFreqX + blob.radiusPhaseX) * blob.radiusAmplitude;
                 float scaleY = 1.0 + cos(uniforms.time * blob.radiusFreqY + blob.radiusPhaseY) * blob.radiusAmplitude;
 
-                float2 radius = blob.baseRadius * float2(scaleX, scaleY);
+                float2 radius = float2(
+                    blob.baseRadius.x * scaleX,
+                    blob.baseRadius.y * scaleY * safeRatio * blob.aspectRatioMultiplier
+                );
 
                 float2 diff = expandedUV - position;
                 diff.x /= max(radius.x, 0.001);
                 diff.y /= max(radius.y, 0.001);
                 float dist = length(diff);
 
+                float blobOpacity = 0.75 + 0.25 * sin(uniforms.time * blob.opacityFrequency + blob.opacityPhase);
+
                 float alpha = 0;
                 if (dist < 0.9) {
-                    alpha = blob.color.a;
+                    alpha = blob.color.a * blobOpacity;
                 } else if (dist < 1.0) {
-                    alpha = blob.color.a * (1.0 - (dist - 0.9) / 0.1);
+                    alpha = blob.color.a * blobOpacity * (1.0 - (dist - 0.9) / 0.1);
                 }
 
-                result = result * (1.0 - alpha) + blob.color.rgb * alpha;
-                resultAlpha = resultAlpha * (1.0 - alpha) + alpha;
+                if (blob.isHighlight == 1) {
+                    highlightResult = highlightResult * (1.0 - alpha) + blob.color.rgb * alpha;
+                    highlightAlpha = highlightAlpha * (1.0 - alpha) + alpha;
+                } else {
+                    baseResult = baseResult * (1.0 - alpha) + blob.color.rgb * alpha;
+                }
             }
 
-            return float4(result, 1.0);
+            float3 finalResult = baseResult;
+            if (highlightAlpha > 0) {
+                float3 overlay = float3(
+                    baseResult.r < 0.5 ? 2.0 * baseResult.r * highlightResult.r : 1.0 - 2.0 * (1.0 - baseResult.r) * (1.0 - highlightResult.r),
+                    baseResult.g < 0.5 ? 2.0 * baseResult.g * highlightResult.g : 1.0 - 2.0 * (1.0 - baseResult.g) * (1.0 - highlightResult.g),
+                    baseResult.b < 0.5 ? 2.0 * baseResult.b * highlightResult.b : 1.0 - 2.0 * (1.0 - baseResult.b) * (1.0 - highlightResult.b)
+                );
+                finalResult = mix(finalResult, overlay, highlightAlpha);
+            }
+
+            return float4(finalResult, 1.0);
         }
 
         struct BlurUniforms {
@@ -483,8 +590,8 @@ private class MetalBlobGradientView: UIView {
     private func applyMotion(pitch: Double, roll: Double) {
         guard bounds.width > 0 else { return }
 
-        let sensitivity: CGFloat = 0.30
-        let maxOffset: CGFloat = 0.20
+        let sensitivity: CGFloat = 0.68
+        let maxOffset: CGFloat = 0.45
         let targetX = max(-maxOffset, min(maxOffset, CGFloat(roll) * sensitivity))
         let targetY = max(-maxOffset, min(maxOffset, CGFloat(pitch) * sensitivity))
 
@@ -512,46 +619,58 @@ private class MetalBlobGradientView: UIView {
         }
     }
 
-    func updateColors(_ colors: [Color]) {
+    func updateColors(_ colors: [Color], highlights: [Color]) {
         let radiusRange = blobSize.radiusRange
         let minRadius = Float(radiusRange.min)
         let maxRadius = Float(max(radiusRange.min + 0.01, radiusRange.max))
         let blobCount = max(5, Int(CGFloat(blobSize.baseBlobCount) * fill))
-        let colorsToUse = (0..<blobCount).map { colors[$0 % colors.count] }
 
-        blobs = colorsToUse.map { color in
-            let uiColor = UIColor(color)
-            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let baseColors = (0..<blobCount).map { colors[$0 % colors.count] }
+        let highlightColors = highlights.isEmpty ? [] : (0..<max(3, blobCount / 3)).map { highlights[$0 % highlights.count] }
 
-            return BlobData(
-                basePosition: SIMD2<Float>(
-                    Float.random(in: 0.2...0.8),
-                    Float.random(in: 0.2...0.8)
-                ),
-                baseRadius: SIMD2<Float>(
-                    Float.random(in: minRadius...maxRadius),
-                    Float.random(in: minRadius...maxRadius)
-                ),
-                color: SIMD4<Float>(Float(r), Float(g), Float(b), Float(a)),
-                phaseX: Float.random(in: 0...(.pi * 2)),
-                phaseY: Float.random(in: 0...(.pi * 2)),
-                frequencyX: Float.random(in: 0.24...0.45),
-                frequencyY: Float.random(in: 0.24...0.45),
-                amplitudeX: Float.random(in: 0.2...0.35),
-                amplitudeY: Float.random(in: 0.2...0.35),
-                radiusPhaseX: Float.random(in: 0...(.pi * 2)),
-                radiusPhaseY: Float.random(in: 0...(.pi * 2)),
-                radiusFreqX: Float.random(in: 0.15...0.36),
-                radiusFreqY: Float.random(in: 0.15...0.36),
-                radiusAmplitude: Float.random(in: 0.3...0.5)
-            )
+        blobs = baseColors.map { color in
+            createBlobData(color: color, minRadius: minRadius, maxRadius: maxRadius, isHighlight: false)
+        } + highlightColors.map { color in
+            createBlobData(color: color, minRadius: minRadius, maxRadius: maxRadius, isHighlight: true)
         }
 
         blobBuffer = device.makeBuffer(
             bytes: &blobs,
             length: MemoryLayout<BlobData>.stride * max(blobs.count, 1),
             options: .storageModeShared
+        )
+    }
+
+    private func createBlobData(color: Color, minRadius: Float, maxRadius: Float, isHighlight: Bool) -> BlobData {
+        let uiColor = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+
+        return BlobData(
+            basePosition: SIMD2<Float>(
+                Float.random(in: 0.0...1.0),
+                Float.random(in: 0.0...1.0)
+            ),
+            baseRadius: SIMD2<Float>(
+                Float.random(in: minRadius...maxRadius),
+                Float.random(in: minRadius...maxRadius)
+            ),
+            color: SIMD4<Float>(Float(r), Float(g), Float(b), Float(a)),
+            phaseX: Float.random(in: 0...(.pi * 2)),
+            phaseY: Float.random(in: 0...(.pi * 2)),
+            frequencyX: Float.random(in: 0.24...0.45),
+            frequencyY: Float.random(in: 0.24...0.45),
+            amplitudeX: Float.random(in: 0.2...0.35),
+            amplitudeY: Float.random(in: 0.2...0.35),
+            radiusPhaseX: Float.random(in: 0...(.pi * 2)),
+            radiusPhaseY: Float.random(in: 0...(.pi * 2)),
+            radiusFreqX: Float.random(in: 0.15...0.36),
+            radiusFreqY: Float.random(in: 0.15...0.36),
+            radiusAmplitude: Float.random(in: 0.3...0.5),
+            aspectRatioMultiplier: Float.random(in: 0.6...1.4),
+            opacityPhase: Float.random(in: 0...(.pi * 2)),
+            opacityFrequency: Float.random(in: 0.2...0.4),
+            isHighlight: isHighlight ? 1 : 0
         )
     }
 }
@@ -573,13 +692,18 @@ extension MetalBlobGradientView: MTKViewDelegate {
             createTextures(drawableSize: drawableSize)
         }
 
-        let time = Float(CACurrentMediaTime() - startTime)
+        let time = Float((CACurrentMediaTime() - startTime) * speed)
+        let viewRatio = bounds.width > 0 && bounds.height > 0 ? Float(bounds.width / bounds.height) : 1.0
         var blobUniforms = Uniforms(
             time: time,
             motionOffset: SIMD2<Float>(Float(currentOffset.x), Float(currentOffset.y)),
             blobCount: Int32(blobs.count),
             bufferRatioX: bufferRatioX,
-            bufferRatioY: bufferRatioY
+            bufferRatioY: bufferRatioY,
+            viewRatio: viewRatio,
+            bgR: bgColor.x,
+            bgG: bgColor.y,
+            bgB: bgColor.z
         )
 
         let useBlur = blur > 0.01 && lowResTexture1 != nil && lowResTexture2 != nil
@@ -595,7 +719,7 @@ extension MetalBlobGradientView: MTKViewDelegate {
             blobPassDescriptor.colorAttachments[0].texture = texture1
             blobPassDescriptor.colorAttachments[0].loadAction = .clear
             blobPassDescriptor.colorAttachments[0].storeAction = .store
-            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: Double(bgColor.x), green: Double(bgColor.y), blue: Double(bgColor.z), alpha: 1)
 
             if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: blobPassDescriptor) {
                 encoder.setRenderPipelineState(blobPipelineState)
@@ -662,7 +786,7 @@ extension MetalBlobGradientView: MTKViewDelegate {
             blobPassDescriptor.colorAttachments[0].texture = drawable.texture
             blobPassDescriptor.colorAttachments[0].loadAction = .clear
             blobPassDescriptor.colorAttachments[0].storeAction = .store
-            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: Double(bgColor.x), green: Double(bgColor.y), blue: Double(bgColor.z), alpha: 1)
 
             if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: blobPassDescriptor) {
                 encoder.setRenderPipelineState(blobPipelineState)
