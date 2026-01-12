@@ -7,20 +7,24 @@ import UIKit
 public struct MetalBlobGradient: View {
     private let blobColors: [Color]
     private let blur: CGFloat
+    private let dithering: CGFloat
 
     public init(
         primary: Color,
         secondary: Color,
-        blur: CGFloat = 0.75
+        blur: CGFloat = 0.75,
+        dithering: CGFloat = 0.4
     ) {
         self.blobColors = Self.generateBlobColors(primary: primary, secondary: secondary)
         self.blur = blur
+        self.dithering = dithering
     }
 
     public var body: some View {
         MetalBlobGradientRepresentable(
             colors: blobColors,
-            blur: blur
+            blur: blur,
+            dithering: dithering
         )
         .ignoresSafeArea()
     }
@@ -44,12 +48,14 @@ extension Color {
     @MainActor
     public func metalBlobGradient(
         secondary: Color? = nil,
-        blur: CGFloat = 0.75
+        blur: CGFloat = 0.75,
+        dithering: CGFloat = 0.4
     ) -> some View {
         MetalBlobGradient(
             primary: self,
             secondary: secondary ?? self.lighter(by: 0.3),
-            blur: blur
+            blur: blur,
+            dithering: dithering
         )
     }
 }
@@ -57,32 +63,35 @@ extension Color {
 private struct MetalBlobGradientRepresentable: UIViewRepresentable {
     let colors: [Color]
     let blur: CGFloat
+    let dithering: CGFloat
 
     func makeUIView(context: Context) -> MetalBlobGradientView {
         context.coordinator.view
     }
 
     func updateUIView(_ view: MetalBlobGradientView, context: Context) {
-        context.coordinator.update(colors: colors, blur: blur)
+        context.coordinator.update(colors: colors, blur: blur, dithering: dithering)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(colors: colors, blur: blur)
+        Coordinator(colors: colors, blur: blur, dithering: dithering)
     }
 
     @MainActor
     class Coordinator {
         var colors: [Color]
         var blur: CGFloat
+        var dithering: CGFloat
         let view: MetalBlobGradientView
 
-        init(colors: [Color], blur: CGFloat) {
+        init(colors: [Color], blur: CGFloat, dithering: CGFloat) {
             self.colors = colors
             self.blur = blur
-            self.view = MetalBlobGradientView(colors: colors, blur: blur)
+            self.dithering = dithering
+            self.view = MetalBlobGradientView(colors: colors, blur: blur, dithering: dithering)
         }
 
-        func update(colors: [Color], blur: CGFloat) {
+        func update(colors: [Color], blur: CGFloat, dithering: CGFloat) {
             if colors != self.colors {
                 self.colors = colors
                 view.updateColors(colors)
@@ -90,6 +99,10 @@ private struct MetalBlobGradientRepresentable: UIViewRepresentable {
             if blur != self.blur {
                 self.blur = blur
                 view.blur = blur
+            }
+            if dithering != self.dithering {
+                self.dithering = dithering
+                view.dithering = dithering
             }
         }
     }
@@ -157,9 +170,11 @@ private class MetalBlobGradientView: UIView {
     private var bufferRatioX: Float = 0.15
     private var bufferRatioY: Float = 0.15
     var blur: CGFloat = 0.75
+    var dithering: CGFloat = 0.4
 
-    init(colors: [Color] = [], blur: CGFloat = 0.75) {
+    init(colors: [Color] = [], blur: CGFloat = 0.75, dithering: CGFloat = 0.4) {
         self.blur = blur
+        self.dithering = dithering
         super.init(frame: .zero)
 
         setupMetal()
@@ -305,7 +320,7 @@ private class MetalBlobGradientView: UIView {
             constexpr sampler textureSampler(mag_filter::linear, min_filter::linear, address::clamp_to_edge);
 
             float offsets[5] = { 0.0, 1.4, 3.3, 5.2, 7.1 };
-            float weights[5] = { 0.16, 0.15, 0.12, 0.08, 0.04 };
+            float weights[5] = { 0.17, 0.16, 0.13, 0.085, 0.043 };
 
             float2 direction = uniforms.horizontal == 1
                 ? float2(uniforms.texelSize.x, 0)
@@ -389,8 +404,8 @@ private class MetalBlobGradientView: UIView {
         guard drawableSize.width > 0 && drawableSize.height > 0 else { return }
         guard bounds.width > 0 && bounds.height > 0 else { return }
 
-        let blurAmount = pow(Float(min(bounds.width, bounds.height)), Float(blur))
-        let scale = max(8, Int(blurAmount / 4))
+        let blurAmount = blur > 0.01 ? pow(Float(min(bounds.width, bounds.height)), Float(blur)) : 0
+        let scale = blurAmount > 1 ? max(8, Int(blurAmount / 4)) : 1
         let lowResWidth = max(1, Int(drawableSize.width) / scale)
         let lowResHeight = max(1, Int(drawableSize.height) / scale)
 
@@ -507,11 +522,6 @@ extension MetalBlobGradientView: MTKViewDelegate {
             createTextures(drawableSize: drawableSize)
         }
 
-        guard let texture1 = lowResTexture1,
-              let texture2 = lowResTexture2 else {
-            return
-        }
-
         let time = Float(CACurrentMediaTime() - startTime)
         var blobUniforms = Uniforms(
             time: time,
@@ -521,73 +531,95 @@ extension MetalBlobGradientView: MTKViewDelegate {
             bufferRatioY: bufferRatioY
         )
 
-        let blobPassDescriptor = MTLRenderPassDescriptor()
-        blobPassDescriptor.colorAttachments[0].texture = texture1
-        blobPassDescriptor.colorAttachments[0].loadAction = .clear
-        blobPassDescriptor.colorAttachments[0].storeAction = .store
-        blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let useBlur = blur > 0.01 && lowResTexture1 != nil && lowResTexture2 != nil
+        var blitUniforms = BlitUniforms(time: time, ditheringAmount: Float(dithering))
 
-        if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: blobPassDescriptor) {
-            encoder.setRenderPipelineState(blobPipelineState)
-            encoder.setFragmentBuffer(blobBuffer, offset: 0, index: 0)
-            encoder.setFragmentBytes(&blobUniforms, length: MemoryLayout<Uniforms>.size, index: 1)
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
-            encoder.endEncoding()
-        }
+        if useBlur {
+            guard let texture1 = lowResTexture1,
+                  let texture2 = lowResTexture2 else {
+                return
+            }
 
-        let texelSize = SIMD2<Float>(1.0 / Float(lowResSize.width), 1.0 / Float(lowResSize.height))
-        let blurPasses = 4
+            let blobPassDescriptor = MTLRenderPassDescriptor()
+            blobPassDescriptor.colorAttachments[0].texture = texture1
+            blobPassDescriptor.colorAttachments[0].loadAction = .clear
+            blobPassDescriptor.colorAttachments[0].storeAction = .store
+            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
 
-        var sourceTexture = texture1
-        var destTexture = texture2
-
-        for pass in 0..<blurPasses {
-            var horizontalUniforms = BlurUniforms(texelSize: texelSize, horizontal: 1)
-            let hPassDescriptor = MTLRenderPassDescriptor()
-            hPassDescriptor.colorAttachments[0].texture = destTexture
-            hPassDescriptor.colorAttachments[0].loadAction = .dontCare
-            hPassDescriptor.colorAttachments[0].storeAction = .store
-
-            if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: hPassDescriptor) {
-                encoder.setRenderPipelineState(blurPipelineState)
-                encoder.setFragmentTexture(sourceTexture, index: 0)
-                encoder.setFragmentBytes(&horizontalUniforms, length: MemoryLayout<BlurUniforms>.size, index: 0)
+            if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: blobPassDescriptor) {
+                encoder.setRenderPipelineState(blobPipelineState)
+                encoder.setFragmentBuffer(blobBuffer, offset: 0, index: 0)
+                encoder.setFragmentBytes(&blobUniforms, length: MemoryLayout<Uniforms>.size, index: 1)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
                 encoder.endEncoding()
             }
 
-            swap(&sourceTexture, &destTexture)
+            let texelSize = SIMD2<Float>(1.0 / Float(lowResSize.width), 1.0 / Float(lowResSize.height))
+            let blurPasses = 4
 
-            var verticalUniforms = BlurUniforms(texelSize: texelSize, horizontal: 0)
-            let vPassDescriptor = MTLRenderPassDescriptor()
-            vPassDescriptor.colorAttachments[0].texture = destTexture
-            vPassDescriptor.colorAttachments[0].loadAction = .dontCare
-            vPassDescriptor.colorAttachments[0].storeAction = .store
+            var sourceTexture = texture1
+            var destTexture = texture2
 
-            if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: vPassDescriptor) {
-                encoder.setRenderPipelineState(blurPipelineState)
+            for _ in 0..<blurPasses {
+                var horizontalUniforms = BlurUniforms(texelSize: texelSize, horizontal: 1)
+                let hPassDescriptor = MTLRenderPassDescriptor()
+                hPassDescriptor.colorAttachments[0].texture = destTexture
+                hPassDescriptor.colorAttachments[0].loadAction = .dontCare
+                hPassDescriptor.colorAttachments[0].storeAction = .store
+
+                if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: hPassDescriptor) {
+                    encoder.setRenderPipelineState(blurPipelineState)
+                    encoder.setFragmentTexture(sourceTexture, index: 0)
+                    encoder.setFragmentBytes(&horizontalUniforms, length: MemoryLayout<BlurUniforms>.size, index: 0)
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+                    encoder.endEncoding()
+                }
+
+                swap(&sourceTexture, &destTexture)
+
+                var verticalUniforms = BlurUniforms(texelSize: texelSize, horizontal: 0)
+                let vPassDescriptor = MTLRenderPassDescriptor()
+                vPassDescriptor.colorAttachments[0].texture = destTexture
+                vPassDescriptor.colorAttachments[0].loadAction = .dontCare
+                vPassDescriptor.colorAttachments[0].storeAction = .store
+
+                if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: vPassDescriptor) {
+                    encoder.setRenderPipelineState(blurPipelineState)
+                    encoder.setFragmentTexture(sourceTexture, index: 0)
+                    encoder.setFragmentBytes(&verticalUniforms, length: MemoryLayout<BlurUniforms>.size, index: 0)
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+                    encoder.endEncoding()
+                }
+
+                swap(&sourceTexture, &destTexture)
+            }
+
+            let finalPassDescriptor = MTLRenderPassDescriptor()
+            finalPassDescriptor.colorAttachments[0].texture = drawable.texture
+            finalPassDescriptor.colorAttachments[0].loadAction = .dontCare
+            finalPassDescriptor.colorAttachments[0].storeAction = .store
+
+            if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: finalPassDescriptor) {
+                encoder.setRenderPipelineState(blitPipelineState)
                 encoder.setFragmentTexture(sourceTexture, index: 0)
-                encoder.setFragmentBytes(&verticalUniforms, length: MemoryLayout<BlurUniforms>.size, index: 0)
+                encoder.setFragmentBytes(&blitUniforms, length: MemoryLayout<BlitUniforms>.size, index: 0)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
                 encoder.endEncoding()
             }
+        } else {
+            let blobPassDescriptor = MTLRenderPassDescriptor()
+            blobPassDescriptor.colorAttachments[0].texture = drawable.texture
+            blobPassDescriptor.colorAttachments[0].loadAction = .clear
+            blobPassDescriptor.colorAttachments[0].storeAction = .store
+            blobPassDescriptor.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
 
-            swap(&sourceTexture, &destTexture)
-        }
-
-        var blitUniforms = BlitUniforms(time: time, ditheringAmount: 0.40)
-
-        let finalPassDescriptor = MTLRenderPassDescriptor()
-        finalPassDescriptor.colorAttachments[0].texture = drawable.texture
-        finalPassDescriptor.colorAttachments[0].loadAction = .dontCare
-        finalPassDescriptor.colorAttachments[0].storeAction = .store
-
-        if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: finalPassDescriptor) {
-            encoder.setRenderPipelineState(blitPipelineState)
-            encoder.setFragmentTexture(sourceTexture, index: 0)
-            encoder.setFragmentBytes(&blitUniforms, length: MemoryLayout<BlitUniforms>.size, index: 0)
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
-            encoder.endEncoding()
+            if let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: blobPassDescriptor) {
+                encoder.setRenderPipelineState(blobPipelineState)
+                encoder.setFragmentBuffer(blobBuffer, offset: 0, index: 0)
+                encoder.setFragmentBytes(&blobUniforms, length: MemoryLayout<Uniforms>.size, index: 1)
+                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+                encoder.endEncoding()
+            }
         }
 
         commandBuffer.present(drawable)

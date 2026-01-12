@@ -6,16 +6,19 @@ import UIKit
 public struct BlobGradient: View {
     private let blobColors: [Color]
     private let blur: CGFloat
+    private let blurAmount: CGFloat
 
     @State private var blurValue: CGFloat = 0.0
 
     public init(
         primary: Color,
         secondary: Color,
-        blur: CGFloat = 0.75
+        blur: CGFloat = 0.75,
+        blurAmount: CGFloat = 1.0
     ) {
         self.blobColors = Self.generateBlobColors(primary: primary, secondary: secondary)
         self.blur = blur
+        self.blurAmount = blurAmount
     }
 
     public var body: some View {
@@ -23,7 +26,7 @@ public struct BlobGradient: View {
             colors: blobColors,
             blurValue: $blurValue
         )
-        .blur(radius: pow(blurValue, blur))
+        .blur(radius: pow(blurValue, blur) * blurAmount)
         .ignoresSafeArea()
     }
 
@@ -46,12 +49,14 @@ extension Color {
     @MainActor
     public func blobGradient(
         secondary: Color? = nil,
-        blur: CGFloat = 0.75
+        blur: CGFloat = 0.75,
+        blurAmount: CGFloat = 1.0
     ) -> some View {
         BlobGradient(
             primary: self,
             secondary: secondary ?? self.lighter(by: 0.3),
-            blur: blur
+            blur: blur,
+            blurAmount: blurAmount
         )
     }
 
