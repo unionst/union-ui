@@ -8,23 +8,35 @@ public struct MetalBlobGradient: View {
     private let blobColors: [Color]
     private let blur: CGFloat
     private let dithering: CGFloat
+    private let particleSize: CGFloat
+    private let fill: CGFloat
+    private let blobSize: BlobSize
 
     public init(
         primary: Color,
         secondary: Color,
         blur: CGFloat = 0.75,
-        dithering: CGFloat = 0.4
+        dithering: CGFloat = 0.4,
+        particleSize: CGFloat = 80,
+        fill: CGFloat = 0.5,
+        blobSize: BlobSize = .medium
     ) {
         self.blobColors = Self.generateBlobColors(primary: primary, secondary: secondary)
         self.blur = blur
         self.dithering = dithering
+        self.particleSize = particleSize
+        self.fill = max(0, min(1, fill))
+        self.blobSize = blobSize
     }
 
     public var body: some View {
         MetalBlobGradientRepresentable(
             colors: blobColors,
             blur: blur,
-            dithering: dithering
+            dithering: dithering,
+            particleSize: particleSize,
+            fill: fill,
+            blobSize: blobSize
         )
         .ignoresSafeArea()
     }
@@ -49,13 +61,19 @@ extension Color {
     public func metalBlobGradient(
         secondary: Color? = nil,
         blur: CGFloat = 0.75,
-        dithering: CGFloat = 0.4
+        dithering: CGFloat = 0.4,
+        particleSize: CGFloat = 80,
+        fill: CGFloat = 0.5,
+        blobSize: BlobSize = .medium
     ) -> some View {
         MetalBlobGradient(
             primary: self,
             secondary: secondary ?? self.lighter(by: 0.3),
             blur: blur,
-            dithering: dithering
+            dithering: dithering,
+            particleSize: particleSize,
+            fill: fill,
+            blobSize: blobSize
         )
     }
 }
@@ -64,17 +82,20 @@ private struct MetalBlobGradientRepresentable: UIViewRepresentable {
     let colors: [Color]
     let blur: CGFloat
     let dithering: CGFloat
+    let particleSize: CGFloat
+    let fill: CGFloat
+    let blobSize: BlobSize
 
     func makeUIView(context: Context) -> MetalBlobGradientView {
         context.coordinator.view
     }
 
     func updateUIView(_ view: MetalBlobGradientView, context: Context) {
-        context.coordinator.update(colors: colors, blur: blur, dithering: dithering)
+        context.coordinator.update(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(colors: colors, blur: blur, dithering: dithering)
+        Coordinator(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
     }
 
     @MainActor
@@ -82,18 +103,28 @@ private struct MetalBlobGradientRepresentable: UIViewRepresentable {
         var colors: [Color]
         var blur: CGFloat
         var dithering: CGFloat
+        var particleSize: CGFloat
+        var fill: CGFloat
+        var blobSize: BlobSize
         let view: MetalBlobGradientView
 
-        init(colors: [Color], blur: CGFloat, dithering: CGFloat) {
+        init(colors: [Color], blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize) {
             self.colors = colors
             self.blur = blur
             self.dithering = dithering
-            self.view = MetalBlobGradientView(colors: colors, blur: blur, dithering: dithering)
+            self.particleSize = particleSize
+            self.fill = fill
+            self.blobSize = blobSize
+            self.view = MetalBlobGradientView(colors: colors, blur: blur, dithering: dithering, particleSize: particleSize, fill: fill, blobSize: blobSize)
         }
 
-        func update(colors: [Color], blur: CGFloat, dithering: CGFloat) {
-            if colors != self.colors {
+        func update(colors: [Color], blur: CGFloat, dithering: CGFloat, particleSize: CGFloat, fill: CGFloat, blobSize: BlobSize) {
+            if colors != self.colors || fill != self.fill || blobSize != self.blobSize {
                 self.colors = colors
+                self.fill = fill
+                self.blobSize = blobSize
+                view.fill = fill
+                view.blobSize = blobSize
                 view.updateColors(colors)
             }
             if blur != self.blur {
@@ -103,6 +134,10 @@ private struct MetalBlobGradientRepresentable: UIViewRepresentable {
             if dithering != self.dithering {
                 self.dithering = dithering
                 view.dithering = dithering
+            }
+            if particleSize != self.particleSize {
+                self.particleSize = particleSize
+                view.particleSize = particleSize
             }
         }
     }
@@ -145,6 +180,8 @@ private struct BlurUniforms {
 private struct BlitUniforms {
     var time: Float
     var ditheringAmount: Float
+    var particleSize: Float
+    var padding: Float = 0
 }
 
 private class MetalBlobGradientView: UIView {
@@ -171,10 +208,16 @@ private class MetalBlobGradientView: UIView {
     private var bufferRatioY: Float = 0.15
     var blur: CGFloat = 0.75
     var dithering: CGFloat = 0.4
+    var particleSize: CGFloat = 80
+    var fill: CGFloat = 0.5
+    var blobSize: BlobSize = .medium
 
-    init(colors: [Color] = [], blur: CGFloat = 0.75, dithering: CGFloat = 0.4) {
+    init(colors: [Color] = [], blur: CGFloat = 0.75, dithering: CGFloat = 0.4, particleSize: CGFloat = 80, fill: CGFloat = 0.5, blobSize: BlobSize = .medium) {
         self.blur = blur
         self.dithering = dithering
+        self.particleSize = particleSize
+        self.fill = fill
+        self.blobSize = blobSize
         super.init(frame: .zero)
 
         setupMetal()
@@ -340,6 +383,8 @@ private class MetalBlobGradientView: UIView {
         struct BlitUniforms {
             float time;
             float ditheringAmount;
+            float particleSize;
+            float padding;
         };
 
         float random(float2 st) {
@@ -355,7 +400,7 @@ private class MetalBlobGradientView: UIView {
 
             float4 color = inputTexture.sample(textureSampler, in.uv);
 
-            float2 noiseCoord = in.uv * 80.0 + floor(uniforms.time * 3.0);
+            float2 noiseCoord = in.uv * uniforms.particleSize;
             float noise = random(noiseCoord) - 0.5;
 
             float spread = 0.08;
@@ -468,7 +513,13 @@ private class MetalBlobGradientView: UIView {
     }
 
     func updateColors(_ colors: [Color]) {
-        blobs = colors.map { color in
+        let radiusRange = blobSize.radiusRange
+        let minRadius = Float(radiusRange.min)
+        let maxRadius = Float(max(radiusRange.min + 0.01, radiusRange.max))
+        let blobCount = max(5, Int(CGFloat(blobSize.baseBlobCount) * fill))
+        let colorsToUse = (0..<blobCount).map { colors[$0 % colors.count] }
+
+        blobs = colorsToUse.map { color in
             let uiColor = UIColor(color)
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             uiColor.getRed(&r, green: &g, blue: &b, alpha: &a)
@@ -479,8 +530,8 @@ private class MetalBlobGradientView: UIView {
                     Float.random(in: 0.2...0.8)
                 ),
                 baseRadius: SIMD2<Float>(
-                    Float.random(in: 0.15...0.3),
-                    Float.random(in: 0.15...0.3)
+                    Float.random(in: minRadius...maxRadius),
+                    Float.random(in: minRadius...maxRadius)
                 ),
                 color: SIMD4<Float>(Float(r), Float(g), Float(b), Float(a)),
                 phaseX: Float.random(in: 0...(.pi * 2)),
@@ -532,7 +583,7 @@ extension MetalBlobGradientView: MTKViewDelegate {
         )
 
         let useBlur = blur > 0.01 && lowResTexture1 != nil && lowResTexture2 != nil
-        var blitUniforms = BlitUniforms(time: time, ditheringAmount: Float(dithering))
+        var blitUniforms = BlitUniforms(time: time, ditheringAmount: Float(dithering), particleSize: Float(particleSize))
 
         if useBlur {
             guard let texture1 = lowResTexture1,
